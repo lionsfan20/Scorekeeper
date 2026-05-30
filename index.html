@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scorekeeper v0.3.1</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:700px;margin:auto;padding:12px}
+.player{border:1px solid #ccc;border-radius:12px;padding:12px;margin:12px 0}
+.header{display:flex;justify-content:space-between;align-items:center}
+.score{font-size:2rem;font-weight:bold}
+.subtotal{font-size:1.2rem;margin:8px 0}
+button{padding:12px;margin:4px;font-size:1rem;min-height:44px}
+.log{margin-top:8px;border-top:1px solid #ddd;padding-top:8px}
+.hidden{display:none}
+.primary{font-weight:bold}
+</style>
+</head>
+<body>
+<h1>Game Night Scorekeeper v0.3.1</h1>
+
+<button id="addPlayerBtn">+ Add Player</button>
+<button id="undoBtn">Undo Last Commit</button>
+
+<div id="players"></div>
+
+<script>
+let players=[{id:1,name:"Player 1",score:0,subtotal:0,log:[]}];
+let history=[];
+
+function render(){
+ const root=document.getElementById('players');
+ root.innerHTML='';
+
+ players.forEach(p=>{
+   const card=document.createElement('div');
+   card.className='player';
+
+   card.innerHTML=`
+    <div class="header">
+      <strong>${p.name}</strong>
+      <span>
+        <button data-action="rename" data-id="${p.id}">✏️</button>
+        <button data-action="delete" data-id="${p.id}">🗑️</button>
+      </span>
+    </div>
+
+    <div class="score">Total: ${p.score}</div>
+    <div class="subtotal">Current Turn: ${p.subtotal}</div>
+
+    <div>
+      <button data-action="add" data-id="${p.id}" data-value="1">+1</button>
+      <button data-action="add" data-id="${p.id}" data-value="2">+2</button>
+      <button data-action="add" data-id="${p.id}" data-value="3">+3</button>
+      <button data-action="add" data-id="${p.id}" data-value="5">+5</button>
+      <button data-action="add" data-id="${p.id}" data-value="-1">-1</button>
+    </div>
+
+    <div>
+      <button data-action="custom" data-id="${p.id}">Custom</button>
+      <button data-action="clear" data-id="${p.id}">Clear</button>
+      <button class="primary" data-action="commit" data-id="${p.id}">Add To Score</button>
+    </div>
+
+    <div>
+      <button data-action="history" data-id="${p.id}">History</button>
+    </div>
+
+    <div id="log-${p.id}" class="log hidden">
+      ${(p.log||[]).slice().reverse().join('')}
+    </div>
+   `;
+
+   root.appendChild(card);
+ });
+
+ attachHandlers();
+}
+
+function attachHandlers(){
+ document.querySelectorAll('[data-action]').forEach(btn=>{
+   btn.addEventListener('click',handleAction);
+ });
+}
+
+function handleAction(e){
+ const action=e.target.dataset.action;
+ const id=Number(e.target.dataset.id);
+ const player=players.find(x=>x.id===id);
+
+ if(action==="rename"){
+   const n=prompt("Player name:",player.name);
+   if(n) player.name=n;
+ }
+
+ if(action==="delete"){
+   if(confirm("Delete "+player.name+"?")){
+      players=players.filter(x=>x.id!==id);
+   }
+ }
+
+ if(action==="add"){
+   player.subtotal+=Number(e.target.dataset.value);
+ }
+
+ if(action==="custom"){
+   const v=parseInt(prompt("Add amount to turn:"),10);
+   if(!isNaN(v)) player.subtotal+=v;
+ }
+
+ if(action==="clear"){
+   player.subtotal=0;
+ }
+
+ if(action==="commit"){
+   if(player.subtotal!==0){
+      player.score+=player.subtotal;
+      player.log.push("<div>"+new Date().toLocaleTimeString()+" : +"+player.subtotal+"</div>");
+      history.push({id:id,value:player.subtotal});
+      player.subtotal=0;
+   }
+ }
+
+ if(action==="history"){
+   document.getElementById("log-"+id).classList.toggle("hidden");
+ }
+
+ render();
+}
+
+document.getElementById('addPlayerBtn').addEventListener('click',()=>{
+ const n=prompt("Enter player name:");
+ if(!n) return;
+
+ players.push({
+   id:Date.now(),
+   name:n,
+   score:0,
+   subtotal:0,
+   log:[]
+ });
+ render();
+});
+
+document.getElementById('undoBtn').addEventListener('click',()=>{
+ const last=history.pop();
+ if(!last) return;
+
+ const p=players.find(x=>x.id===last.id);
+ if(!p) return;
+
+ p.score-=last.value;
+ p.log.push("<div>"+new Date().toLocaleTimeString()+" : UNDO "+last.value+"</div>");
+ render();
+});
+
+render();
+</script>
+</body>
+</html>
