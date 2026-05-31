@@ -3,216 +3,190 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Game Night Scorekeeper v0.4</title>
+<title>Game Night Scorekeeper v0.4.1</title>
 <style>
-body{font-family:Arial,sans-serif;max-width:750px;margin:auto;padding:12px}
-h1{text-align:center}
-.controls{margin-bottom:16px}
+body{font-family:Arial,sans-serif;max-width:800px;margin:auto;padding:12px}
 .player{border:1px solid #ccc;border-radius:12px;padding:12px;margin:12px 0}
 .header{display:flex;justify-content:space-between;align-items:center}
 .score{font-size:2rem;font-weight:bold}
 .subtotal{font-size:1.2rem;margin:8px 0}
-button{padding:12px;margin:4px;font-size:1rem;min-height:44px}
-.primary{font-weight:bold}
+button{padding:12px;margin:4px;min-height:44px}
+.settings{border:1px solid #ccc;border-radius:12px;padding:12px;margin-bottom:16px}
 .log{margin-top:8px;border-top:1px solid #ddd;padding-top:8px}
 .hidden{display:none}
-#saveStatus{margin-bottom:12px;font-size:.9rem}
 </style>
 </head>
 <body>
+<h1>Game Night Scorekeeper v0.4.1</h1>
 
-<h1>Game Night Scorekeeper v0.4</h1>
 <div id="saveStatus">Last Saved: Never</div>
 
-<div class="controls">
+<div class="settings">
+<h3>Game Settings</h3>
+<label><input type="radio" name="mode" value="up"> Count Up</label>
+<label><input type="radio" name="mode" value="down"> Countdown</label>
+<br><br>
+<label>Starting Score:
+<input id="startingScore" type="number" value="100" style="width:90px">
+</label>
+<button id="applySettings">Apply To New Players</button>
+</div>
+
 <button id="addPlayerBtn">+ Add Player</button>
 <button id="undoBtn">Undo Last Commit</button>
 <button id="resetBtn">Reset Scores</button>
 <button id="saveBtn">Save Now</button>
-</div>
 
 <div id="players"></div>
 
 <script>
-const STORAGE_KEY="gameNightScorekeeper_v04";
+const KEY="gameNightScorekeeper_v041";
 
-let state = loadGame() || {
-  players:[{
-    id:1,
-    name:"Player 1",
-    score:0,
-    subtotal:0,
-    log:[],
-    historyOpen:false
-  }],
-  history:[],
-  lastSaved:null
+let state=JSON.parse(localStorage.getItem(KEY) || "null") || {
+ settings:{mode:"up",startingScore:100},
+ players:[{id:1,name:"Player 1",score:0,subtotal:0,log:[],historyOpen:false}],
+ history:[],
+ lastSaved:null
 };
 
-function saveGame(){
-  state.lastSaved = new Date().toLocaleTimeString();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  document.getElementById("saveStatus").textContent =
-    "Last Saved: " + state.lastSaved;
+function save(){
+ state.lastSaved=new Date().toLocaleTimeString();
+ localStorage.setItem(KEY,JSON.stringify(state));
 }
 
-function loadGame(){
-  try{
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : null;
-  }catch(e){
-    return null;
-  }
-}
+function persistRender(){ save(); render(); }
 
 function render(){
-  document.getElementById("saveStatus").textContent =
-    "Last Saved: " + (state.lastSaved || "Never");
+ document.getElementById('saveStatus').textContent="Last Saved: "+(state.lastSaved||"Never");
 
-  const root=document.getElementById("players");
-  root.innerHTML="";
+ document.querySelector(`input[name="mode"][value="${state.settings.mode}"]`).checked=true;
+ document.getElementById('startingScore').value=state.settings.startingScore;
 
-  state.players.forEach(p=>{
-    const card=document.createElement("div");
-    card.className="player";
+ const root=document.getElementById('players');
+ root.innerHTML='';
 
-    card.innerHTML=`
-      <div class="header">
-        <strong>${p.name}</strong>
-        <span>
-          <button data-action="rename" data-id="${p.id}">✏️</button>
-          <button data-action="delete" data-id="${p.id}">🗑️</button>
-        </span>
-      </div>
+ state.players.forEach(p=>{
+  const card=document.createElement('div');
+  card.className='player';
 
-      <div class="score">Total: ${p.score}</div>
-      <div class="subtotal">Current Turn: ${p.subtotal}</div>
+  card.innerHTML=`
+  <div class="header">
+    <strong>${p.name}</strong>
+    <span>
+      <button data-a="rename" data-id="${p.id}">✏️</button>
+      <button data-a="delete" data-id="${p.id}">🗑️</button>
+    </span>
+  </div>
+  <div class="score">Total: ${p.score}</div>
+  <div class="subtotal">Current Turn: ${p.subtotal}</div>
 
-      <div>
-        <button data-action="add" data-id="${p.id}" data-value="1">+1</button>
-        <button data-action="add" data-id="${p.id}" data-value="2">+2</button>
-        <button data-action="add" data-id="${p.id}" data-value="3">+3</button>
-        <button data-action="add" data-id="${p.id}" data-value="5">+5</button>
-        <button data-action="add" data-id="${p.id}" data-value="-1">-1</button>
-      </div>
+  <button data-a="add" data-id="${p.id}" data-v="1">+1</button>
+  <button data-a="add" data-id="${p.id}" data-v="2">+2</button>
+  <button data-a="add" data-id="${p.id}" data-v="3">+3</button>
+  <button data-a="add" data-id="${p.id}" data-v="5">+5</button>
+  <button data-a="add" data-id="${p.id}" data-v="-1">-1</button>
 
-      <div>
-        <button data-action="custom" data-id="${p.id}">Custom</button>
-        <button data-action="clear" data-id="${p.id}">Clear</button>
-        <button class="primary" data-action="commit" data-id="${p.id}">Add To Score</button>
-      </div>
+  <div>
+    <button data-a="custom" data-id="${p.id}">Custom</button>
+    <button data-a="clear" data-id="${p.id}">Clear</button>
+    <button data-a="commit" data-id="${p.id}">Add To Score</button>
+  </div>
 
-      <div>
-        <button data-action="history" data-id="${p.id}">
-          ${p.historyOpen ? "▼ History" : "▶ History"}
-        </button>
-      </div>
+  <button data-a="history" data-id="${p.id}">${p.historyOpen?"▼":"▶"} History</button>
 
-      <div class="log ${p.historyOpen ? "" : "hidden"}">
-        ${p.log.length ? p.log.slice().reverse().join("") : "<div>No history yet</div>"}
-      </div>
-    `;
-    root.appendChild(card);
-  });
+  <div class="log ${p.historyOpen?"":"hidden"}">
+   ${p.log.length?p.log.slice().reverse().join(""):"<div>No history yet</div>"}
+  </div>
+  `;
+  root.appendChild(card);
+ });
 
-  document.querySelectorAll("[data-action]").forEach(btn=>{
-    btn.addEventListener("click", handleAction);
-  });
+ document.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',action));
 }
 
-function persistAndRender(){
-  saveGame();
-  render();
+function action(e){
+ const a=e.target.dataset.a;
+ const id=Number(e.target.dataset.id);
+ const p=state.players.find(x=>x.id===id);
+
+ if(a==="rename"){ const n=prompt("Player name:",p.name); if(n)p.name=n; }
+ if(a==="delete"){ if(confirm("Delete "+p.name+"?")) state.players=state.players.filter(x=>x.id!==id); }
+ if(a==="add"){ p.subtotal+=Number(e.target.dataset.v); }
+ if(a==="custom"){ let v=parseInt(prompt("Add amount:"),10); if(!isNaN(v)) p.subtotal+=v; }
+ if(a==="clear"){ p.subtotal=0; }
+
+ if(a==="commit" && p.subtotal!==0){
+   const applied = p.subtotal;
+   if(state.settings.mode==="up"){
+      p.score += applied;
+   } else {
+      p.score -= applied;
+      if(p.score <= 0){
+        p.score = 0;
+        alert("🎉 "+p.name+" reached zero!");
+      }
+   }
+   p.log.push("<div>"+new Date().toLocaleTimeString()+" : "+(applied>0?"+":"")+applied+"</div>");
+   state.history.push({id:p.id,value:applied});
+   p.subtotal=0;
+ }
+
+ if(a==="history"){ p.historyOpen=!p.historyOpen; }
+
+ persistRender();
 }
 
-function handleAction(e){
-  const action=e.target.dataset.action;
-  const id=Number(e.target.dataset.id);
-  const p=state.players.find(x=>x.id===id);
-
-  if(action==="rename"){
-    const n=prompt("Player name:", p.name);
-    if(n) p.name=n;
-  }
-
-  if(action==="delete"){
-    if(confirm("Delete " + p.name + "?")){
-      state.players=state.players.filter(x=>x.id!==id);
-    }
-  }
-
-  if(action==="add"){ p.subtotal += Number(e.target.dataset.value); }
-
-  if(action==="custom"){
-    const v=parseInt(prompt("Add amount to turn:"),10);
-    if(!isNaN(v)) p.subtotal += v;
-  }
-
-  if(action==="clear"){ p.subtotal=0; }
-
-  if(action==="commit" && p.subtotal!==0){
-    p.score += p.subtotal;
-    const sign=p.subtotal>0?"+":"";
-    p.log.push("<div>"+new Date().toLocaleTimeString()+" : "+sign+p.subtotal+"</div>");
-    state.history.push({id:p.id,value:p.subtotal});
-    p.subtotal=0;
-  }
-
-  if(action==="history"){ p.historyOpen=!p.historyOpen; }
-
-  persistAndRender();
-}
-
-document.getElementById("addPlayerBtn").addEventListener("click",()=>{
-  const name=prompt("Enter player name:");
-  if(!name) return;
-
-  state.players.push({
-    id:Date.now(),
-    name,
-    score:0,
-    subtotal:0,
-    log:[],
-    historyOpen:false
-  });
-
-  persistAndRender();
+document.getElementById('applySettings').addEventListener('click',()=>{
+ state.settings.mode=document.querySelector('input[name="mode"]:checked').value;
+ state.settings.startingScore=parseInt(document.getElementById('startingScore').value,10)||0;
+ persistRender();
 });
 
-document.getElementById("undoBtn").addEventListener("click",()=>{
-  const last=state.history.pop();
-  if(!last) return;
+document.getElementById('addPlayerBtn').addEventListener('click',()=>{
+ const n=prompt("Enter player name:");
+ if(!n) return;
 
-  const p=state.players.find(x=>x.id===last.id);
-  if(!p) return;
+ const start = state.settings.mode==="down" ? state.settings.startingScore : 0;
 
-  p.score -= last.value;
-  p.log.push("<div>"+new Date().toLocaleTimeString()+" : UNDO "+last.value+"</div>");
-  persistAndRender();
+ state.players.push({
+   id:Date.now(),name:n,score:start,subtotal:0,log:[],historyOpen:false
+ });
+ persistRender();
 });
 
-document.getElementById("resetBtn").addEventListener("click",()=>{
-  if(!confirm("Reset all scores and history?\n\nPlayers will remain in the game.")) return;
+document.getElementById('undoBtn').addEventListener('click',()=>{
+ const last=state.history.pop(); if(!last) return;
+ const p=state.players.find(x=>x.id===last.id); if(!p) return;
 
-  state.players.forEach(p=>{
-    p.score=0;
-    p.subtotal=0;
-    p.log=[];
-    p.historyOpen=false;
-  });
+ if(state.settings.mode==="up") p.score-=last.value;
+ else p.score+=last.value;
 
-  state.history=[];
-  persistAndRender();
+ p.log.push("<div>"+new Date().toLocaleTimeString()+" : UNDO "+last.value+"</div>");
+ persistRender();
 });
 
-document.getElementById("saveBtn").addEventListener("click",()=>{
-  saveGame();
-  render();
+document.getElementById('resetBtn').addEventListener('click',()=>{
+ if(!confirm("Reset scores and history?")) return;
+
+ const start = state.settings.mode==="down" ? state.settings.startingScore : 0;
+
+ state.players.forEach(p=>{
+   p.score=start;
+   p.subtotal=0;
+   p.log=[];
+   p.historyOpen=false;
+ });
+
+ state.history=[];
+ persistRender();
+});
+
+document.getElementById('saveBtn').addEventListener('click',()=>{
+ save(); render();
 });
 
 render();
-saveGame();
+save();
 </script>
-
 </body>
 </html>
