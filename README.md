@@ -10,3 +10,4 @@ v0.4 Add in Persistance and Saving functionality
  - v0.4.1 Add in count up and countdown modes. 
 v0.5 Update game settings dialog; apply globally by default
  - v0.5.1 Redefine Generic counter game type; eliminate Generic Countdown gametype
+ - v0.5.2 Remove auto-focusing on Template dropdown. Add player count to banner.
