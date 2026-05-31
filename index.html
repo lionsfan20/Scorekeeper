@@ -3,38 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Game Night Scorekeeper v0.5.1</title>
+<title>Game Night Scorekeeper v0.5.2</title>
 <style>
 body{font-family:Arial,sans-serif;max-width:850px;margin:auto;padding:12px}
 .banner,.player{border:1px solid #ccc;border-radius:12px;padding:12px;margin-bottom:12px}
 .player{margin-top:12px}
 .header{display:flex;justify-content:space-between;align-items:center}
 .score{font-size:2rem;font-weight:bold}
-.subtotal{font-size:1.1rem;margin:8px 0}
+.subtotal{margin:8px 0}
 button{padding:10px 12px;margin:4px;min-height:44px}
 .hidden{display:none}
 .log{border-top:1px solid #ddd;padding-top:8px;margin-top:8px}
 dialog{border-radius:12px;padding:16px;max-width:360px}
-.controls{margin-bottom:12px}
+.small{font-size:.85rem;color:#555;margin-top:10px}
 </style>
 </head>
 <body>
-
-<h1>Game Night Scorekeeper v0.5.1</h1>
+<h1>Game Night Scorekeeper v0.5.2</h1>
 
 <div class="banner">
-  <div id="gameDisplay"></div>
-  <div id="scoringDisplay"></div>
-  <div id="saveDisplay"></div>
+<div id="gameDisplay"></div>
+<div id="scoringDisplay"></div>
+<div id="playerCount"></div>
+<div id="saveDisplay"></div>
 </div>
 
-<div class="controls">
-  <button id="addPlayerBtn">+ Add Player</button>
-  <button id="undoBtn">Undo</button>
-  <button id="resetBtn">Reset Scores</button>
-  <button id="settingsBtn">⚙️ Game Settings</button>
-  <button id="saveBtn">Save Now</button>
-</div>
+<button id="addPlayerBtn">+ Add Player</button>
+<button id="undoBtn">Undo</button>
+<button id="resetBtn">Reset Scores</button>
+<button id="settingsBtn">⚙️ Game Settings</button>
 
 <div id="players"></div>
 
@@ -43,7 +40,7 @@ dialog{border-radius:12px;padding:16px;max-width:360px}
 
 <label>Template</label><br>
 <select id="templateSelect">
-  <option value="generic-counter">Generic Counter</option>
+<option>Generic Counter</option>
 </select>
 
 <br><br>
@@ -53,260 +50,128 @@ dialog{border-radius:12px;padding:16px;max-width:360px}
 
 <br><br>
 
-<label>
-Starting Score
-<input id="startingScoreInput" type="number" min="0" value="100">
+<label>Starting Score
+<input id="startingScoreInput" type="number" min="0">
 </label>
 
-<br><br>
-
+<div style="margin-top:12px">
 <button id="cancelSettingsBtn">Cancel</button>
 <button id="saveSettingsBtn">Save Settings</button>
+</div>
+
+<div class="small">Game Night Scorekeeper v0.5.2</div>
 </dialog>
 
 <script>
-const KEY="gameNightScorekeeper_v051_full";
-
-let state = JSON.parse(localStorage.getItem(KEY)||"null") || {
-  settings:{
-    template:"generic-counter",
-    scoringMode:"up",
-    startingScore:100
-  },
-  players:[{
-    id:1,
-    name:"Player 1",
-    score:0,
-    subtotal:0,
-    log:[],
-    historyOpen:false
-  }],
-  history:[],
-  lastSaved:null
+const KEY="gameNightScorekeeper_v052";
+let state=JSON.parse(localStorage.getItem(KEY)||"null")||{
+ settings:{template:"generic-counter",scoringMode:"up",startingScore:100},
+ players:[{id:1,name:"Player 1",score:0,subtotal:0,log:[],historyOpen:false}],
+ history:[],
+ lastSaved:null
 };
 
-function saveGame(){
-  state.lastSaved = new Date().toLocaleTimeString();
-  localStorage.setItem(KEY, JSON.stringify(state));
-}
-
-function startingValue(){
-  return state.settings.scoringMode==="down"
-    ? state.settings.startingScore
-    : 0;
-}
-
-function resetGameData(){
-  const start = startingValue();
-
-  state.players.forEach(p=>{
-    p.score=start;
-    p.subtotal=0;
-    p.log=[];
-    p.historyOpen=false;
-  });
-
-  state.history=[];
-}
-
-function persist(){
-  saveGame();
-  render();
-}
+function save(){state.lastSaved=new Date().toLocaleTimeString();localStorage.setItem(KEY,JSON.stringify(state));}
+function startVal(){return state.settings.scoringMode==="down"?state.settings.startingScore:0;}
+function persist(){save();render();}
 
 function render(){
-  document.getElementById("gameDisplay").textContent =
-    "Game: Generic Counter";
+ gameDisplay.textContent="Game: Generic Counter";
+ scoringDisplay.textContent=state.settings.scoringMode==="down" ?
+   `Scoring: Countdown [${state.settings.startingScore}]` : "Scoring: Count Up";
+ playerCount.textContent=`Players: ${state.players.length}`;
+ saveDisplay.textContent=`Last Saved: ${state.lastSaved||"Never"}`;
 
-  document.getElementById("scoringDisplay").textContent =
-    state.settings.scoringMode==="down"
-      ? "Scoring: Countdown ["+state.settings.startingScore+"]"
-      : "Scoring: Count Up";
-
-  document.getElementById("saveDisplay").textContent =
-    "Last Saved: " + (state.lastSaved || "Never");
-
-  const root=document.getElementById("players");
-  root.innerHTML="";
-
-  state.players.forEach(p=>{
-    const card=document.createElement("div");
-    card.className="player";
-
-    card.innerHTML=`
-      <div class="header">
-        <strong>${p.name}</strong>
-        <span>
-          <button data-a="rename" data-id="${p.id}">✏️</button>
-          <button data-a="delete" data-id="${p.id}">🗑️</button>
-        </span>
-      </div>
-
-      <div class="score">Total: ${p.score}</div>
-      <div class="subtotal">Current Turn: ${p.subtotal}</div>
-
-      <div>
-        <button data-a="add" data-id="${p.id}" data-v="1">+1</button>
-        <button data-a="add" data-id="${p.id}" data-v="2">+2</button>
-        <button data-a="add" data-id="${p.id}" data-v="3">+3</button>
-        <button data-a="add" data-id="${p.id}" data-v="5">+5</button>
-        <button data-a="add" data-id="${p.id}" data-v="-1">-1</button>
-      </div>
-
-      <div>
-        <button data-a="custom" data-id="${p.id}">Custom</button>
-        <button data-a="clear" data-id="${p.id}">Clear</button>
-        <button data-a="commit" data-id="${p.id}">Add To Score</button>
-      </div>
-
-      <button data-a="history" data-id="${p.id}">
-        ${p.historyOpen ? "▼" : "▶"} History
-      </button>
-
-      <div class="log ${p.historyOpen ? "" : "hidden"}">
-        ${p.log.length ? p.log.slice().reverse().join("") : "<div>No history yet</div>"}
-      </div>
-    `;
-
-    root.appendChild(card);
-  });
-
-  document.querySelectorAll("[data-a]").forEach(btn=>{
-    btn.addEventListener("click",handleAction);
-  });
+ players.innerHTML="";
+ state.players.forEach(p=>{
+  const d=document.createElement("div");
+  d.className="player";
+  d.innerHTML=`
+   <div class="header"><strong>${p.name}</strong>
+   <span><button data-a="rename" data-id="${p.id}">✏️</button>
+   <button data-a="delete" data-id="${p.id}">🗑️</button></span></div>
+   <div class="score">Total: ${p.score}</div>
+   <div class="subtotal">Current Turn: ${p.subtotal}</div>
+   <button data-a="add" data-id="${p.id}" data-v="1">+1</button>
+   <button data-a="add" data-id="${p.id}" data-v="2">+2</button>
+   <button data-a="add" data-id="${p.id}" data-v="3">+3</button>
+   <button data-a="add" data-id="${p.id}" data-v="5">+5</button>
+   <button data-a="add" data-id="${p.id}" data-v="-1">-1</button><br>
+   <button data-a="custom" data-id="${p.id}">Custom</button>
+   <button data-a="clear" data-id="${p.id}">Clear</button>
+   <button data-a="commit" data-id="${p.id}">Add To Score</button><br>
+   <button data-a="history" data-id="${p.id}">${p.historyOpen?"▼":"▶"} History</button>
+   <div class="log ${p.historyOpen?"":"hidden"}">${p.log.length?p.log.slice().reverse().join(""):"No history yet"}</div>`;
+  players.appendChild(d);
+ });
+ document.querySelectorAll("[data-a]").forEach(b=>b.onclick=action);
 }
 
-function handleAction(e){
-  const a=e.target.dataset.a;
-  const id=Number(e.target.dataset.id);
-  const p=state.players.find(x=>x.id===id);
-
-  if(a==="rename"){
-    const n=prompt("Player name:",p.name);
-    if(n) p.name=n;
-  }
-
-  if(a==="delete"){
-    if(confirm("Delete "+p.name+"?")){
-      state.players=state.players.filter(x=>x.id!==id);
-    }
-  }
-
-  if(a==="add") p.subtotal += Number(e.target.dataset.v);
-
-  if(a==="custom"){
-    const v=parseInt(prompt("Add amount:"),10);
-    if(!isNaN(v)) p.subtotal += v;
-  }
-
-  if(a==="clear") p.subtotal=0;
-
-  if(a==="commit" && p.subtotal!==0){
-    const value=p.subtotal;
-
-    if(state.settings.scoringMode==="up"){
-      p.score += value;
-    } else {
-      p.score -= value;
-      if(p.score<=0){
-        p.score=0;
-        alert("🎉 "+p.name+" reached zero!");
-      }
-    }
-
-    p.log.push("<div>"+new Date().toLocaleTimeString()+" : "+(value>0?"+":"")+value+"</div>");
-    state.history.push({id:p.id,value:value});
-    p.subtotal=0;
-  }
-
-  if(a==="history"){
-    p.historyOpen=!p.historyOpen;
-  }
-
-  persist();
+function action(e){
+ const a=e.target.dataset.a,id=Number(e.target.dataset.id);
+ const p=state.players.find(x=>x.id===id);
+ if(a==="rename"){let n=prompt("Player name:",p.name);if(n)p.name=n;}
+ if(a==="delete"){if(confirm("Delete player?"))state.players=state.players.filter(x=>x.id!==id);}
+ if(a==="add")p.subtotal+=Number(e.target.dataset.v);
+ if(a==="custom"){let v=parseInt(prompt("Add amount:"),10);if(!isNaN(v))p.subtotal+=v;}
+ if(a==="clear")p.subtotal=0;
+ if(a==="commit"&&p.subtotal!==0){
+   let v=p.subtotal;
+   if(state.settings.scoringMode==="up") p.score+=v; else {p.score=Math.max(0,p.score-v); if(p.score===0) alert("🎉 "+p.name+" reached zero!");}
+   p.log.push("<div>"+new Date().toLocaleTimeString()+" : "+(v>0?"+":"")+v+"</div>");
+   state.history.push({id:p.id,value:v});
+   p.subtotal=0;
+ }
+ if(a==="history")p.historyOpen=!p.historyOpen;
+ persist();
 }
 
-document.getElementById("addPlayerBtn").onclick=()=>{
-  const name=prompt("Enter player name:");
-  if(!name) return;
-
-  state.players.push({
-    id:Date.now(),
-    name:name,
-    score:startingValue(),
-    subtotal:0,
-    log:[],
-    historyOpen:false
-  });
-
-  persist();
+addPlayerBtn.onclick=()=>{
+ let n=prompt("Enter player name:");
+ if(!n)return;
+ state.players.push({id:Date.now(),name:n,score:startVal(),subtotal:0,log:[],historyOpen:false});
+ persist();
 };
 
-document.getElementById("undoBtn").onclick=()=>{
-  const last=state.history.pop();
-  if(!last) return;
-
-  const p=state.players.find(x=>x.id===last.id);
-  if(!p) return;
-
-  if(state.settings.scoringMode==="up"){
-    p.score -= last.value;
-  } else {
-    p.score += last.value;
-  }
-
-  p.log.push("<div>"+new Date().toLocaleTimeString()+" : UNDO "+last.value+"</div>");
-  persist();
+undoBtn.onclick=()=>{
+ let h=state.history.pop(); if(!h)return;
+ let p=state.players.find(x=>x.id===h.id); if(!p)return;
+ if(state.settings.scoringMode==="up") p.score-=h.value; else p.score+=h.value;
+ p.log.push("<div>"+new Date().toLocaleTimeString()+" : UNDO "+h.value+"</div>");
+ persist();
 };
 
-document.getElementById("resetBtn").onclick=()=>{
-  if(confirm("Reset all scores and history?")){
-    resetGameData();
-    persist();
-  }
+resetBtn.onclick=()=>{
+ if(confirm("Reset all scores and history?")){
+  state.players.forEach(p=>{p.score=startVal();p.subtotal=0;p.log=[];p.historyOpen=false;});
+  state.history=[]; persist();
+ }
 };
 
-document.getElementById("saveBtn").onclick=()=>{
-  saveGame();
-  render();
+settingsBtn.onclick=()=>{
+ document.querySelector(`input[name="mode"][value="${state.settings.scoringMode}"]`).checked=true;
+ startingScoreInput.value=state.settings.startingScore;
+ settingsDialog.showModal();
+ setTimeout(()=>document.getElementById("cancelSettingsBtn").focus(),0);
 };
 
-const dialog=document.getElementById("settingsDialog");
+cancelSettingsBtn.onclick=()=>settingsDialog.close();
 
-document.getElementById("settingsBtn").onclick=()=>{
-  document.querySelector('input[name="mode"][value="'+state.settings.scoringMode+'"]').checked=true;
-  document.getElementById("startingScoreInput").value=state.settings.startingScore;
-  dialog.showModal();
+saveSettingsBtn.onclick=()=>{
+ let mode=document.querySelector('input[name="mode"]:checked').value;
+ let start=parseInt(startingScoreInput.value,10)||0;
+ if(mode!==state.settings.scoringMode||start!==state.settings.startingScore){
+   if(!confirm("Applying new settings will reset scores, history, and current turns. Continue?")) return;
+   state.settings.scoringMode=mode;
+   state.settings.startingScore=start;
+   state.players.forEach(p=>{p.score=(mode==="down"?start:0);p.subtotal=0;p.log=[];p.historyOpen=false;});
+   state.history=[];
+ }
+ persist();
+ settingsDialog.close();
 };
 
-document.getElementById("cancelSettingsBtn").onclick=()=>dialog.close();
-
-document.getElementById("saveSettingsBtn").onclick=()=>{
-  const mode=document.querySelector('input[name="mode"]:checked').value;
-  const start=parseInt(document.getElementById("startingScoreInput").value,10)||0;
-
-  const changed =
-    mode!==state.settings.scoringMode ||
-    start!==state.settings.startingScore;
-
-  if(changed){
-    if(!confirm("Applying new settings will reset scores, history, and current turns. Continue?")){
-      return;
-    }
-
-    state.settings.scoringMode=mode;
-    state.settings.startingScore=start;
-
-    resetGameData();
-    persist();
-  }
-
-  dialog.close();
-};
-
-render();
-saveGame();
+save(); render();
 </script>
-
 </body>
 </html>
