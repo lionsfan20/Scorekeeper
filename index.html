@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Game Night Scorekeeper v0.3.3</title>
+<title>Game Night Scorekeeper v0.4</title>
 <style>
 body{font-family:Arial,sans-serif;max-width:750px;margin:auto;padding:12px}
 h1{text-align:center}
@@ -16,37 +16,63 @@ button{padding:12px;margin:4px;font-size:1rem;min-height:44px}
 .primary{font-weight:bold}
 .log{margin-top:8px;border-top:1px solid #ddd;padding-top:8px}
 .hidden{display:none}
+#saveStatus{margin-bottom:12px;font-size:.9rem}
 </style>
 </head>
 <body>
 
-<h1>Game Night Scorekeeper v0.3.3</h1>
+<h1>Game Night Scorekeeper v0.4</h1>
+<div id="saveStatus">Last Saved: Never</div>
 
 <div class="controls">
 <button id="addPlayerBtn">+ Add Player</button>
 <button id="undoBtn">Undo Last Commit</button>
 <button id="resetBtn">Reset Scores</button>
+<button id="saveBtn">Save Now</button>
 </div>
 
 <div id="players"></div>
 
 <script>
-let players=[{
-  id:1,
-  name:"Player 1",
-  score:0,
-  subtotal:0,
-  log:[],
-  historyOpen:false
-}];
+const STORAGE_KEY="gameNightScorekeeper_v04";
 
-let history=[];
+let state = loadGame() || {
+  players:[{
+    id:1,
+    name:"Player 1",
+    score:0,
+    subtotal:0,
+    log:[],
+    historyOpen:false
+  }],
+  history:[],
+  lastSaved:null
+};
+
+function saveGame(){
+  state.lastSaved = new Date().toLocaleTimeString();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  document.getElementById("saveStatus").textContent =
+    "Last Saved: " + state.lastSaved;
+}
+
+function loadGame(){
+  try{
+    const data = localStorage.getItem(STORAGE_KEY);
+    return data ? JSON.parse(data) : null;
+  }catch(e){
+    return null;
+  }
+}
 
 function render(){
+  document.getElementById("saveStatus").textContent =
+    "Last Saved: " + (state.lastSaved || "Never");
+
   const root=document.getElementById("players");
   root.innerHTML="";
 
-  players.forEach(p=>{
+  state.players.forEach(p=>{
     const card=document.createElement("div");
     card.className="player";
 
@@ -86,7 +112,6 @@ function render(){
         ${p.log.length ? p.log.slice().reverse().join("") : "<div>No history yet</div>"}
       </div>
     `;
-
     root.appendChild(card);
   });
 
@@ -95,10 +120,15 @@ function render(){
   });
 }
 
+function persistAndRender(){
+  saveGame();
+  render();
+}
+
 function handleAction(e){
   const action=e.target.dataset.action;
   const id=Number(e.target.dataset.id);
-  const p=players.find(x=>x.id===id);
+  const p=state.players.find(x=>x.id===id);
 
   if(action==="rename"){
     const n=prompt("Player name:", p.name);
@@ -107,95 +137,81 @@ function handleAction(e){
 
   if(action==="delete"){
     if(confirm("Delete " + p.name + "?")){
-      players=players.filter(x=>x.id!==id);
+      state.players=state.players.filter(x=>x.id!==id);
     }
   }
 
-  if(action==="add"){
-    p.subtotal += Number(e.target.dataset.value);
-  }
+  if(action==="add"){ p.subtotal += Number(e.target.dataset.value); }
 
   if(action==="custom"){
     const v=parseInt(prompt("Add amount to turn:"),10);
     if(!isNaN(v)) p.subtotal += v;
   }
 
-  if(action==="clear"){
+  if(action==="clear"){ p.subtotal=0; }
+
+  if(action==="commit" && p.subtotal!==0){
+    p.score += p.subtotal;
+    const sign=p.subtotal>0?"+":"";
+    p.log.push("<div>"+new Date().toLocaleTimeString()+" : "+sign+p.subtotal+"</div>");
+    state.history.push({id:p.id,value:p.subtotal});
     p.subtotal=0;
   }
 
-  if(action==="commit"){
-    if(p.subtotal!==0){
-      p.score += p.subtotal;
+  if(action==="history"){ p.historyOpen=!p.historyOpen; }
 
-      const sign=p.subtotal>0?"+":"";
-      p.log.push("<div>"+new Date().toLocaleTimeString()+" : "+sign+p.subtotal+"</div>");
-
-      history.push({
-        id:p.id,
-        value:p.subtotal
-      });
-
-      p.subtotal=0;
-    }
-  }
-
-  if(action==="history"){
-    p.historyOpen=!p.historyOpen;
-  }
-
-  render();
+  persistAndRender();
 }
 
-document.getElementById("addPlayerBtn").addEventListener("click", ()=>{
+document.getElementById("addPlayerBtn").addEventListener("click",()=>{
   const name=prompt("Enter player name:");
   if(!name) return;
 
-  players.push({
+  state.players.push({
     id:Date.now(),
-    name:name,
+    name,
     score:0,
     subtotal:0,
     log:[],
     historyOpen:false
   });
 
-  render();
+  persistAndRender();
 });
 
-document.getElementById("undoBtn").addEventListener("click", ()=>{
-  const last=history.pop();
+document.getElementById("undoBtn").addEventListener("click",()=>{
+  const last=state.history.pop();
   if(!last) return;
 
-  const p=players.find(x=>x.id===last.id);
+  const p=state.players.find(x=>x.id===last.id);
   if(!p) return;
 
   p.score -= last.value;
   p.log.push("<div>"+new Date().toLocaleTimeString()+" : UNDO "+last.value+"</div>");
-
-  render();
+  persistAndRender();
 });
 
-document.getElementById("resetBtn").addEventListener("click", ()=>{
-  const ok=confirm(
-    "Reset all scores and history?\n\nPlayers will remain in the game."
-  );
+document.getElementById("resetBtn").addEventListener("click",()=>{
+  if(!confirm("Reset all scores and history?\n\nPlayers will remain in the game.")) return;
 
-  if(!ok) return;
-
-  players.forEach(p=>{
+  state.players.forEach(p=>{
     p.score=0;
     p.subtotal=0;
     p.log=[];
     p.historyOpen=false;
   });
 
-  history=[];
+  state.history=[];
+  persistAndRender();
+});
 
+document.getElementById("saveBtn").addEventListener("click",()=>{
+  saveGame();
   render();
 });
 
 render();
+saveGame();
 </script>
 
 </body>
