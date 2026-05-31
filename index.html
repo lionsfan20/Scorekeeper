@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scorekeeper v0.3.1</title>
+<title>Scorekeeper v0.3.2</title>
 <style>
 body{font-family:Arial,sans-serif;max-width:700px;margin:auto;padding:12px}
 .player{border:1px solid #ccc;border-radius:12px;padding:12px;margin:12px 0}
@@ -14,10 +14,11 @@ button{padding:12px;margin:4px;font-size:1rem;min-height:44px}
 .log{margin-top:8px;border-top:1px solid #ddd;padding-top:8px}
 .hidden{display:none}
 .primary{font-weight:bold}
+.history-btn{font-weight:bold}
 </style>
 </head>
 <body>
-<h1>Game Night Scorekeeper v0.3.1</h1>
+<h1>Game Night Scorekeeper v0.3.2</h1>
 
 <button id="addPlayerBtn">+ Add Player</button>
 <button id="undoBtn">Undo Last Commit</button>
@@ -25,7 +26,15 @@ button{padding:12px;margin:4px;font-size:1rem;min-height:44px}
 <div id="players"></div>
 
 <script>
-let players=[{id:1,name:"Player 1",score:0,subtotal:0,log:[]}];
+let players=[{
+  id:1,
+  name:"Player 1",
+  score:0,
+  subtotal:0,
+  log:[],
+  historyOpen:false
+}];
+
 let history=[];
 
 function render(){
@@ -33,6 +42,8 @@ function render(){
  root.innerHTML='';
 
  players.forEach(p=>{
+   const historyLabel = p.historyOpen ? "▼ History" : "▶ History";
+
    const card=document.createElement('div');
    card.className='player';
 
@@ -63,11 +74,11 @@ function render(){
     </div>
 
     <div>
-      <button data-action="history" data-id="${p.id}">History</button>
+      <button class="history-btn" data-action="history" data-id="${p.id}">${historyLabel}</button>
     </div>
 
-    <div id="log-${p.id}" class="log hidden">
-      ${(p.log||[]).slice().reverse().join('')}
+    <div id="log-${p.id}" class="log ${p.historyOpen ? '' : 'hidden'}">
+      ${(p.log||[]).length ? p.log.slice().reverse().join('') : '<div>No history yet</div>'}
     </div>
    `;
 
@@ -100,29 +111,30 @@ function handleAction(e){
  }
 
  if(action==="add"){
-   player.subtotal+=Number(e.target.dataset.value);
+   player.subtotal += Number(e.target.dataset.value);
  }
 
  if(action==="custom"){
    const v=parseInt(prompt("Add amount to turn:"),10);
-   if(!isNaN(v)) player.subtotal+=v;
+   if(!isNaN(v)) player.subtotal += v;
  }
 
  if(action==="clear"){
-   player.subtotal=0;
+   player.subtotal = 0;
  }
 
  if(action==="commit"){
-   if(player.subtotal!==0){
-      player.score+=player.subtotal;
-      player.log.push("<div>"+new Date().toLocaleTimeString()+" : +"+player.subtotal+"</div>");
+   if(player.subtotal !== 0){
+      player.score += player.subtotal;
+      const sign = player.subtotal > 0 ? "+" : "";
+      player.log.push("<div>"+new Date().toLocaleTimeString()+" : "+sign+player.subtotal+"</div>");
       history.push({id:id,value:player.subtotal});
-      player.subtotal=0;
+      player.subtotal = 0;
    }
  }
 
  if(action==="history"){
-   document.getElementById("log-"+id).classList.toggle("hidden");
+   player.historyOpen = !player.historyOpen;
  }
 
  render();
@@ -137,8 +149,10 @@ document.getElementById('addPlayerBtn').addEventListener('click',()=>{
    name:n,
    score:0,
    subtotal:0,
-   log:[]
+   log:[],
+   historyOpen:false
  });
+
  render();
 });
 
@@ -149,7 +163,7 @@ document.getElementById('undoBtn').addEventListener('click',()=>{
  const p=players.find(x=>x.id===last.id);
  if(!p) return;
 
- p.score-=last.value;
+ p.score -= last.value;
  p.log.push("<div>"+new Date().toLocaleTimeString()+" : UNDO "+last.value+"</div>");
  render();
 });
