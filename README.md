@@ -12,3 +12,4 @@ v0.5 Update game settings dialog; apply globally by default
  - v0.5.1 Redefine Generic counter game type; eliminate Generic Countdown gametype
  - v0.5.2 Remove auto-focusing on Template dropdown. Add player count to banner.
  - v0.5.3 Revised UI for buttons in landscape mode.
+ - v0.5.4 Adjusted current turn counter in player card. 
